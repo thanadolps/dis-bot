@@ -7,8 +7,9 @@ from time import time
 
 client = discord.Client()
 
-async def send(message: discord.Message, text: str, *args: list) -> None:
-    await client.send_message(message.channel, text,*args)
+async def send(message: discord.Message, text: str, *args: list, type=True) -> discord.Message:
+    if type : await client.send_typing(message.channel)
+    return await client.send_message(message.channel, text,*args)
 
 async def info(message,args):
     await client.send_message(message.channel, "Server\t->\t{0.name}\n"
@@ -17,16 +18,18 @@ async def info(message,args):
 async def send_all(message,args):
     for chan in message.server.channels:
         if chan.type == discord.ChannelType.text:
-            await client.send_message(chan, str(message.author) + ':speech_left:\n' + message.content)
+            await client.send_message(chan, str(message.author) + ':speech_left:\n' + " ".join(args))
 
 async def close(message: discord.Message, args: list) -> None:
+    mess = await send(message, "no! please don't do that, don't kill me")
+    await client.edit_message(mess, "[System] {} shutdowned".format(client.user.name))
     await client.close()
 
 async def show_play(message, args):
     if len(args) > 0 :
-        game = discord.Game(name=args[0])
-        client.change_presence(game=game)
-        await send(message,'Bot now playing game...')
+        game = discord.Game(name=" ".join(args))
+        await client.change_presence(game=game)
+        await send(message,'Bot now playing : {0}'.format(" ".join(args)))
     else :
         await send(message,'Please Specify what\'s to play')
 
@@ -115,9 +118,12 @@ async def on_message(message):
         else :
             await func[0](message, cmd[1:])
     elif cmd[0] == '!list':
+
+        out = ""
+        client.send_typing(message.channel)
         for k in commands :
-            await client.send_typing(message.channel)
-            await send(message, "{0}\t→\t{1:>10}".format(k,commands[k][1]) )
+            out += "{0}\t→\t{1:>10}\n".format(k, commands[k][1])
+        await send(message, out , type=False)
 
     if False:
         if message.author == client.user:
@@ -140,7 +146,6 @@ async def on_message(message):
             else:
                 await client.send_message(message.channel, 'Sorry. It is actually {}.'.format(answer))
 
-
 @client.event
 async def on_ready():
     print('Logged in as')
@@ -148,4 +153,12 @@ async def on_ready():
     print(client.user.id)
     print('------')
 
-client.run('Mzc4MTc1NjA5NTk3MTk4MzM2.DOc9Ow.1Ykkg6BaivrFR6UiiNWx8OH2ExQ')
+    for c in client.get_all_channels():
+        if c.type == discord.ChannelType.text :
+            await client.send_message(c,"{} is now online !!!!".format(client.user.name))
+
+#to use it with your bot either
+#  remove 'Import Info' and replace Info.token with your bot token
+#  create Info.py in same dictionary and have varaible 'toekn' be your string token
+import Info
+client.run(Info.token)
