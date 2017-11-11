@@ -150,14 +150,16 @@ class Music(Program) :
 
     async def play_next(self,message=None):
 
-        self.ytdl_player = await self.voice_client.create_ytdl_player("https://www.youtube.com/watch?v=" + self.queue[0],
-                                                                      after=self.async_play_next)
+        if len(self.queue) > 0 :
+            self.ytdl_player = await self.voice_client.create_ytdl_player("https://www.youtube.com/watch?v=" + self.queue[0],
+                                                                          after=self.async_play_next)
 
-        #await show_play(message, [self.ytdl_player.title])
+            #await show_play(message, [self.ytdl_player.title])
 
-        self.ytdl_player.start()
+            self.ytdl_player.start()
 
-        self.queue.pop(0)
+
+            self.queue.pop(0)
 
 
 
@@ -183,8 +185,8 @@ class Music(Program) :
                     await send(message, "Music Added to queue")
                     print(self.queue)
 
-                    if not self.ytdl_player:
-                        await self.play_next(message)
+                    if (not self.ytdl_player) or (len(self.queue) == 1 and not self.ytdl_player.is_playing()):
+                            await self.play_next(message)
 
             else:
                 await send(message, '!music url [channel=first_voice_channel]')
