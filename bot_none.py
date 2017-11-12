@@ -1,9 +1,4 @@
 import discord
-import random
-import asyncio
-from random import randrange,choice
-from re import finditer
-from time import time
 
 client = discord.Client()
 
@@ -67,5 +62,6 @@ async def on_ready():
 #to use it with your bot either
 #  remove 'Import Info' and replace Info.token with your bot token
 #  create Info.py in same dictionary and have varaible 'token' be your string token
-import Info
+from Testing import Info
+
 client.run(Info.token)

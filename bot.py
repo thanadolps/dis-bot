@@ -1,14 +1,14 @@
-import discord
-import random
 import asyncio
-from random import randrange,choice
+import re
+from random import choice
 from re import finditer
 from time import time
-from Brainfuck_python_interpreter.Interpreter import BF
-from discord.utils import find
-import re
-from typing import Union
+from typing import Union, Tuple, Callable, Dict, List, Set, Optional, Iterator
 
+import discord
+from discord.utils import find
+
+from Brainfuck_python_interpreter.Interpreter import BF
 
 client = discord.Client()
 
@@ -58,13 +58,23 @@ async def avatar(message ,args):
         author = message.author
     await send (message, author.avatar_url)
 
-
+async def cal(message, args):
+    if len(args) > 0 :
+        try:
+            eval("".join(args))
+        except Exception as e:
+            await send(message , str(e))
+    else :
+        await send(message, "!cal *statement*")
+        await send(message, "Perform using python interpreter")
 
 class Program :
 
     def __init__(self):
         pass
 
+    async def main(self,message : discord.Message, args : List[str]):
+        await send(message, " ".join(args))
 
 class Hangman(Program) :
 
@@ -160,13 +170,13 @@ class Music(Program) :
         if len(self.queue) > 0 :
             try :
                 self.ytdl_player : discord.voice_client.ProcessPlayer = await self.voice_client.create_ytdl_player(self.queue[0], after=self.async_play_next)
+                self.ytdl_player.start()
+                await show_play(self.message, ["  **{}**\n{}".format(self.ytdl_player.title, self.ytdl_player.url)])
             except Exception as e:
                 await send(self.message, str(e))
             finally:
                 self.queue.pop(0)
 
-            await show_play(self.message, ["  **{}**\n{}".format(self.ytdl_player.title,self.ytdl_player.url)])
-            self.ytdl_player.start()
         else :
             await client.change_presence(game=None)
             await send(self.message, "[Music] End of queue - add new music typing `!music [youtube-url]`")
@@ -206,16 +216,83 @@ class Music(Program) :
                     self.queue.append(args[0])
                 else :
                     await send(message, "URL Invalid")
+                    return
 
                 await send(message, "Music Added to queue")
 
-                print(self.queue)
+                print("Queue : {}".format(self.queue))
 
                 if (not self.ytdl_player) or (len(self.queue) == 1 and not self.ytdl_player.is_playing()):
                         await self.play_next(message)
 
         else:
             await send(message, '!music url [channel=first_voice_channel]')
+
+class G(Program):
+
+    def __init__(self):
+        super(G, self).__init__()
+        self.participant : Dict[discord.Server, Set[discord.Member]]  = {}
+
+    async def fetch_free_channel(self, channels : Iterator[discord.Channel]) -> discord.Channel:
+        for c in channels:
+            if c.type == discord.ChannelType.voice and c.name[0] == '✆' and len(c.voice_members) == 0 :
+                return c
+
+
+    async def moveto_channel(self, message : discord.Message):
+
+        channel = await self.fetch_free_channel(message.server.channels)
+
+        if not channel :
+            await send(message, "Server's channel capacity full")
+            return
+
+        for aut in self.participant[message.server]:
+            await send(message, "Teleport {} to {}".format(aut, channel.name))
+            await client.move_member(aut, channel)
+
+    async def main(self, message : discord.Message, args : List[str]):
+
+        """
+
+        :type message: discord.Message
+        """
+        if len(args) > 0 :
+
+            if args[0] == 'j' :
+                if message.server not in self.participant:
+                    self.participant[message.server] = set()
+
+                if len(args) > 1 :
+                    name = message.server.get_member_named(args[1])
+                else:
+                    name = message.author
+
+                self.participant[message.server].add(name)
+                await send(message, "{} has participate".format(name))
+            elif args[0] == 'r':
+                pass
+
+            elif args[0] == 'g' :
+                try :
+                    await self.moveto_channel(message)
+                except discord.errors.Forbidden as e :
+                    await send(message, "-- **Missing Permission** -- Contact Admin For Permission")
+            else:
+                await send(message, "!g j                                     →             "
+                                    "show yourself as participate in game\n"
+                "!g r                                     →             "
+                                    "remove yourself from participate in game\n"
+                
+                "!g c                                     →             "
+                                    "kick everyone out of the party\n"
+                "!g l                                     →             "
+                                    "see who participated\n"
+                                    "!g g [$channel|me]        →            "
+                                    "gather all participant to newly created channel\n"
+                    "                                        (me)           optional your channel if you wish\n"
+               "                                     ($channel)    or channel named $channel,except if it named 'me'")
 
 
 commands = {'!info':(info,'Display Server Information'),
@@ -225,7 +302,9 @@ commands = {'!info':(info,'Display Server Information'),
             '!send_all' : (send_all, 'Propel Message To All Channel'),
             '!brain_fuck' : (brain_fuck, 'Interpret brain-fuck command'),
             '!avatar' : (avatar, 'Get user avatar'),
-            '!music' : (Music(), 'Play youtube music')}
+            '!music' : (Music(), 'Play youtube music'),
+            '!cal' : (cal, 'inline calculator'),
+            '!g' : (G(), 'j for join and g for gather, h for some help')}
 
 
 @client.event
@@ -236,7 +315,7 @@ async def on_message(message):
         return
 
     cmd = message.content.strip().split(" ")
-    func = commands.get(cmd[0], False)
+    func : Tuple[Union[Program, Callable[[discord.Message, str],None]], str] = commands.get(cmd[0], False)
 
     if func:
         if isinstance(func[0],Program):
@@ -272,5 +351,6 @@ async def on_ready():
 #to use it with your bot either
 #  remove 'Import Info' and replace Info.token with your bot token
 #  create Info.py in same dictionary and have varaible 'toekn' be your string token
-import Info
+from Testing import Info
+
 client.run(Info.token)
