@@ -6,13 +6,19 @@ from re import finditer
 from time import time
 from Brainfuck_python_interpreter.Interpreter import BF
 from discord.utils import find
+import re
+from typing import Union
 
 
 client = discord.Client()
 
-async def send(message: discord.Message, text: str, *args: list, type=True) -> discord.Message:
+async def send(message: Union[discord.Message, discord.Channel], text: str, *args: list, type=True) -> discord.Message:
     if type : await client.send_typing(message.channel)
-    return await client.send_message(message.channel, text,*args)
+
+    if isinstance(message, discord.Message):
+        return await client.send_message(message.channel , text,*args)
+    else:
+        return await client.send_message(message , text,*args)
 
 async def info(message,args):
     await client.send_message(message.channel, "Server\t->\t{0.name}\n"
@@ -117,14 +123,15 @@ class Hangman(Program) :
             self.tryed = 0
             await send(message,'Hangman has just start\n\ntypes \'!hangman list\' to see sub-command')
 
-
+urlFragment_regex = re.compile(r'[\w-]{11}')
+url_regex = re.compile(r'https://www[.]youtube[.]com/watch[?]v=[\w-]{11}')
 class Music(Program) :
 
     def __init__(self):
         super(Music, self).__init__()
 
         self.queue = []
-        self.voice_client = None
+        self.voice_client : discord.VoiceClient = None
         self.ytdl_player = None
 
 
@@ -151,48 +158,64 @@ class Music(Program) :
     async def play_next(self,message=None):
 
         if len(self.queue) > 0 :
-            self.ytdl_player = await self.voice_client.create_ytdl_player("https://www.youtube.com/watch?v=" + self.queue[0],
-                                                                          after=self.async_play_next)
+            try :
+                self.ytdl_player : discord.voice_client.ProcessPlayer = await self.voice_client.create_ytdl_player(self.queue[0], after=self.async_play_next)
+            except Exception as e:
+                await send(self.message, str(e))
+            finally:
+                self.queue.pop(0)
 
-            #await show_play(message, [self.ytdl_player.title])
-
+            await show_play(self.message, ["  **{}**\n{}".format(self.ytdl_player.title,self.ytdl_player.url)])
             self.ytdl_player.start()
-
-
-            self.queue.pop(0)
-
+        else :
+            await client.change_presence(game=None)
+            await send(self.message, "[Music] End of queue - add new music typing `!music [youtube-url]`")
+    #async def fadeMusic(self):
 
 
     async def main(self, message: discord.Message, args : list):
 
-        try:
+        self.message : discord.Message = message
 
-            await self.join_channel(message)
-            print(self.voice_client)
+        await self.join_channel(message)
+        print(self.voice_client)
 
-            if len(args) > 0:
+        if len(args) > 0:
 
-                if args[0] == 'queue':
-                    #Change to complied thread in list????
-                    out = ""
-                    for i in self.queue:
-                        out += "https://www.youtube.com/watch?v={}\n".format(i)
-                    await send(message,out)
-                elif args[0] =='clear':
-                    self.queue = []
-                else :
+            # !music queue
+            if args[0] == 'queue':
+                # Change to complied thread in list????
+                out = ""
+                for i in self.queue:
+                    out += "{}\n".format(i)
+                await send(message,out)
+
+            # !music stop
+            elif args[0] == 'stop':
+                self.ytdl_player.stop()
+            # !music clear
+            elif args[0] =='clear':
+                self.queue = []
+
+            # !music [urlFrag]
+            else :
+                # Add to queue
+                if urlFragment_regex.fullmatch(args[0]) :
+                    self.queue.append("https://www.youtube.com/watch?v={}".format(args[0]))
+                elif url_regex.fullmatch(args[0]) :
                     self.queue.append(args[0])
-                    await send(message, "Music Added to queue")
-                    print(self.queue)
+                else :
+                    await send(message, "URL Invalid")
 
-                    if (not self.ytdl_player) or (len(self.queue) == 1 and not self.ytdl_player.is_playing()):
-                            await self.play_next(message)
+                await send(message, "Music Added to queue")
 
-            else:
-                await send(message, '!music url [channel=first_voice_channel]')
+                print(self.queue)
 
-        except Exception as e:
-            await send(message, 'Error : {0}'.format(e))
+                if (not self.ytdl_player) or (len(self.queue) == 1 and not self.ytdl_player.is_playing()):
+                        await self.play_next(message)
+
+        else:
+            await send(message, '!music url [channel=first_voice_channel]')
 
 
 commands = {'!info':(info,'Display Server Information'),
